@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>终极记忆匹配挑战</title>
+    <title>国庆翻翻乐</title>
     <style>
         body {
             margin: 0;
@@ -85,7 +82,6 @@
         }
 
         .card::after {
-            /* 修改为图片：替换content为url()，并设置background-image */
             content: attr(data-type);
             position: absolute;
             width: 100%;
@@ -139,16 +135,23 @@
             color: #ffea00;
             font-weight: bold;
         }
+
+        @media (max-width: 480px) {
+            .card {
+                width: 60px;
+                height: 60px;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="mode-selector">
         <button class="mode-btn" onclick="startGame('easy')" 
-                data-desc="无限步数｜记忆时间：5/6/8秒">简单模式</button>
+                data-desc="无限步数｜记忆时间：5/7/9秒">简单模式</button>
         <button class="mode-btn" onclick="startGame('normal')" 
-                data-desc="有限步数｜12/20/28步｜记忆时间：4/5/6秒">中等模式</button>
+                data-desc="有限步数｜15/20/25步｜记忆时间：5/7/9秒">中等模式</button>
         <button class="mode-btn" onclick="startGame('hard')" 
-                data-desc="双重限制｜10/15/20步｜全局120秒｜记忆时间：3/4/5秒">困难模式</button>
+                data-desc="双重限制｜15/20/25步｜全局150秒｜记忆时间：4/6/8秒">困难模式</button>
     </div>
 
     <div id="game-container">
@@ -180,36 +183,37 @@
     </div>
 
     <script>
-        // 游戏配置
+        // ========== 游戏配置 ==========
+        const LEVEL_SIZES = [
+            [2, 3],  // 第1关：2行3列（6卡）
+            [3, 4],  // 第2关：3行4列（12卡）
+            [4, 4]   // 第3关：4行4列（16卡）
+        ];
+
         const DIFFICULTY_SETTINGS = {
-            easy: {    // 简单模式：无限步数
+            easy: {
                 steps: [Infinity, Infinity, Infinity],
-                timeLimits: [5, 6, 8],
+                timeLimits: [5, 7, 9],
                 totalTime: Infinity
             },
-            normal: {  // 中等模式：有限步数
-                steps: [12, 20, 28],
-                timeLimits: [4, 5, 6],
+            normal: {
+                steps: [15, 20, 25],
+                timeLimits: [5, 7, 9],
                 totalTime: Infinity
             },
-            hard: {    // 困难模式：双重限制
-                steps: [10, 15, 20],
-                timeLimits: [3, 4, 5],
-                totalTime: 120
+            hard: {
+                steps: [15, 20, 25],
+                timeLimits: [4, 6, 8],
+                totalTime: 150
             }
         };
 
-        // 关卡尺寸配置 [行, 列]
-        const LEVEL_SIZES = [
-            [2, 3],  // 第1关：2行3列（6卡）
-            [4, 4],  // 第2关：4行4列（16卡）
-            [4, 5]   // 第3关：4行5列（20卡）
-        ];
-
+        // ========== 游戏状态 ==========
         let currentMode = null;
         let currentLevel = 0;
         let gameState = null;
 
+        // ========== 核心函数 ==========
         function startGame(mode) {
             currentMode = mode;
             currentLevel = 0;
@@ -221,7 +225,6 @@
         function initGame() {
             const config = DIFFICULTY_SETTINGS[currentMode];
             const [rows, cols] = LEVEL_SIZES[currentLevel];
-            const totalCards = rows * cols;
             
             // 初始化游戏状态
             gameState = {
@@ -256,8 +259,8 @@
             const pairs = (rows * cols) / 2;
             /* 
             【替换为图片步骤】：
-            1. 将下方`元素${i+1}`改为图片路径，例如：`img/card-${i+1}.png`
-            2. 修改CSS中.card::after的content为background-image: url(attr(data-type))
+            1. 将下方改为图片路径数组，例如：`img/card-${i+1}.png`
+            2. 修改.card::after的CSS为背景图显示
             */
             const types = Array.from({length: pairs}, (_,i) => `元素${i+1}`);
             const cards = types.flatMap(t => [t, t]).sort(() => Math.random() - 0.5);
@@ -296,7 +299,6 @@
         function handleFlip(card) {
             if(gameState.isProcessing || card.classList.contains('flipped')) return;
 
-            // 步数处理（简单模式除外）
             if(currentMode !== 'easy') {
                 gameState.steps--;
                 if(gameState.steps < 0) return handleGameOver("🚫 步数用尽！");
@@ -314,7 +316,8 @@
 
         function checkMatch() {
             const [card1, card2] = gameState.flipped;
-            const totalCards = LEVEL_SIZES[currentLevel][0] * LEVEL_SIZES[currentLevel][1];
+            const [rows, cols] = LEVEL_SIZES[currentLevel];
+            const totalCards = rows * cols;
             
             if(card1.dataset.type === card2.dataset.type) {
                 gameState.matched += 2;
@@ -335,6 +338,7 @@
             gameState.isProcessing = false;
         }
 
+        // ========== 工具函数 ==========
         function updateDisplay() {
             document.getElementById('current-level').textContent = currentLevel + 1;
             document.getElementById('steps').textContent = 

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>终极记忆匹配挑战</title>
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(45deg, #d50000, #ff6d00);
+            font-family: '微软雅黑';
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #mode-selector {
+            margin: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            padding: 15px 30px;
+            background: #ffea00;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .mode-btn:hover::after {
+            content: attr(data-desc);
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        #game-container {
+            display: none;
+            width: 95%;
+            max-width: 800px;
+            margin: 20px;
+        }
+
+        .card {
+            width: 70px;
+            height: 70px;
+            background: #ff1744;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card::before {
+            content: "?";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            backface-visibility: hidden;
+        }
+
+        .card::after {
+            /* 修改为图片：替换content为url()，并设置background-image */
+            content: attr(data-type);
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            color: #003366;
+            font-size: 14px;
+            transform: rotateY(180deg);
+            backface-visibility: hidden;
+            padding: 2px;
+        }
+
+        .flipped {
+            transform: rotateY(180deg);
+        }
+
+        #game-board {
+            display: grid;
+            gap: 10px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        #status-bar {
+            color: white;
+            font-size: 18px;
+            margin: 20px 0;
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .timer-box {
+            background: rgba(0,0,0,0.3);
+            padding: 8px 15px;
+            border-radius: 8px;
+        }
+
+        #memory-timer {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        #global-timer {
+            color: #ffea00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="mode-selector">
+        <button class="mode-btn" onclick="startGame('easy')" 
+                data-desc="无限步数｜记忆时间：5/6/8秒">简单模式</button>
+        <button class="mode-btn" onclick="startGame('normal')" 
+                data-desc="有限步数｜12/20/28步｜记忆时间：4/5/6秒">中等模式</button>
+        <button class="mode-btn" onclick="startGame('hard')" 
+                data-desc="双重限制｜10/15/20步｜全局120秒｜记忆时间：3/4/5秒">困难模式</button>
+    </div>
+
+    <div id="game-container">
+        <div id="status-bar">
+            <div class="timer-box">
+                记忆剩余：<span id="memory-timer">0</span>秒
+            </div>
+            <div class="timer-box">
+                关卡：<span id="current-level">1</span>/3
+            </div>
+            <div class="timer-box">
+                剩余步数：<span id="steps">∞</span>
+            </div>
+            <div class="timer-box" id="global-time">
+                剩余时间：<span id="global-timer">∞</span>秒
+            </div>
+        </div>
+        <div id="game-board"></div>
+        <div style="text-align:center; margin-top:20px;">
+            <button class="mode-btn" onclick="restartLevel()" 
+                    style="background:#fff; color:#d50000; margin-right:10px;">
+                重玩本关
+            </button>
+            <button class="mode-btn" onclick="restartGame()" 
+                    style="background:#fff; color:#d50000">
+                全新开始
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const DIFFICULTY_SETTINGS = {
+            easy: {    // 简单模式：无限步数
+                steps: [Infinity, Infinity, Infinity],
+                timeLimits: [5, 6, 8],
+                totalTime: Infinity
+            },
+            normal: {  // 中等模式：有限步数
+                steps: [12, 20, 28],
+                timeLimits: [4, 5, 6],
+                totalTime: Infinity
+            },
+            hard: {    // 困难模式：双重限制
+                steps: [10, 15, 20],
+                timeLimits: [3, 4, 5],
+                totalTime: 120
+            }
+        };
+
+        // 关卡尺寸配置 [行, 列]
+        const LEVEL_SIZES = [
+            [2, 3],  // 第1关：2行3列（6卡）
+            [4, 4],  // 第2关：4行4列（16卡）
+            [4, 5]   // 第3关：4行5列（20卡）
+        ];
+
+        let currentMode = null;
+        let currentLevel = 0;
+        let gameState = null;
+
+        function startGame(mode) {
+            currentMode = mode;
+            currentLevel = 0;
+            document.getElementById('mode-selector').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            initGame();
+        }
+
+        function initGame() {
+            const config = DIFFICULTY_SETTINGS[currentMode];
+            const [rows, cols] = LEVEL_SIZES[currentLevel];
+            const totalCards = rows * cols;
+            
+            // 初始化游戏状态
+            gameState = {
+                steps: config.steps[currentLevel],
+                timeLeft: config.totalTime,
+                globalTimer: null,
+                memoryTimer: null,
+                flipped: [],
+                matched: 0,
+                isProcessing: false
+            };
+
+            updateDisplay();
+
+            // 全局计时器（仅困难模式）
+            if(currentMode === 'hard') {
+                document.getElementById('global-time').style.display = 'block';
+                gameState.globalTimer = setInterval(() => {
+                    gameState.timeLeft--;
+                    document.getElementById('global-timer').textContent = gameState.timeLeft;
+                    if(gameState.timeLeft <= 0) handleGameOver("⏰ 时间用尽！");
+                }, 1000);
+            } else {
+                document.getElementById('global-time').style.display = 'none';
+            }
+
+            generateCards(rows, cols);
+            startMemoryPhase(config.timeLimits[currentLevel]);
+        }
+
+        function generateCards(rows, cols) {
+            const pairs = (rows * cols) / 2;
+            /* 
+            【替换为图片步骤】：
+            1. 将下方`元素${i+1}`改为图片路径，例如：`img/card-${i+1}.png`
+            2. 修改CSS中.card::after的content为background-image: url(attr(data-type))
+            */
+            const types = Array.from({length: pairs}, (_,i) => `元素${i+1}`);
+            const cards = types.flatMap(t => [t, t]).sort(() => Math.random() - 0.5);
+
+            const board = document.getElementById('game-board');
+            board.style.gridTemplateColumns = `repeat(${cols}, 70px)`;
+            board.innerHTML = cards.map(t => `
+                <div class="card" data-type="${t}" onclick="handleFlip(this)"></div>
+            `).join('');
+        }
+
+        function startMemoryPhase(seconds) {
+            document.getElementById('memory-timer').textContent = seconds;
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.add('flipped');
+                card.style.pointerEvents = 'none';
+            });
+
+            let remaining = seconds;
+            gameState.memoryTimer = setInterval(() => {
+                document.getElementById('memory-timer').textContent = remaining;
+                if(remaining-- <= 0) {
+                    clearInterval(gameState.memoryTimer);
+                    endMemoryPhase();
+                }
+            }, 1000);
+        }
+
+        function endMemoryPhase() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('flipped');
+                card.style.pointerEvents = 'auto';
+            });
+        }
+
+        function handleFlip(card) {
+            if(gameState.isProcessing || card.classList.contains('flipped')) return;
+
+            // 步数处理（简单模式除外）
+            if(currentMode !== 'easy') {
+                gameState.steps--;
+                if(gameState.steps < 0) return handleGameOver("🚫 步数用尽！");
+                updateDisplay();
+            }
+
+            card.classList.add('flipped');
+            gameState.flipped.push(card);
+
+            if(gameState.flipped.length === 2) {
+                gameState.isProcessing = true;
+                setTimeout(checkMatch, 800);
+            }
+        }
+
+        function checkMatch() {
+            const [card1, card2] = gameState.flipped;
+            const totalCards = LEVEL_SIZES[currentLevel][0] * LEVEL_SIZES[currentLevel][1];
+            
+            if(card1.dataset.type === card2.dataset.type) {
+                gameState.matched += 2;
+                if(gameState.matched === totalCards) {
+                    if(currentLevel < 2) {
+                        currentLevel++;
+                        initGame();
+                    } else {
+                        handleGameOver("🎉 恭喜通关！");
+                    }
+                }
+            } else {
+                card1.classList.remove('flipped');
+                card2.classList.remove('flipped');
+            }
+
+            gameState.flipped = [];
+            gameState.isProcessing = false;
+        }
+
+        function updateDisplay() {
+            document.getElementById('current-level').textContent = currentLevel + 1;
+            document.getElementById('steps').textContent = 
+                gameState.steps === Infinity ? "∞" : gameState.steps;
+            document.getElementById('global-timer').textContent = 
+                gameState.timeLeft === Infinity ? "∞" : gameState.timeLeft;
+        }
+
+        function handleGameOver(message) {
+            alert(message);
+            restartGame();
+        }
+
+        function restartLevel() {
+            clearInterval(gameState.globalTimer);
+            clearInterval(gameState.memoryTimer);
+            initGame();
+        }
+
+        function restartGame() {
+            clearInterval(gameState.globalTimer);
+            clearInterval(gameState.memoryTimer);
+            document.getElementById('mode-selector').style.display = 'flex';
+            document.getElementById('game-container').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

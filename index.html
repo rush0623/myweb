@@ -4,6 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>国庆翻翻乐</title>
+    <div class="title-container">
+        <h1 class="national-day-title">国庆翻翻乐</h1>
+      </div>
+      
+      <style>
+      .national-day-title {
+        font-family: 'Microsoft YaHei', sans-serif;
+        font-size: 3rem;
+        background: linear-gradient(to right, #ff00ea, #8400ff);
+        -webkit-background-clip: text;
+        color: transparent;
+        text-shadow: 2px 2px 4px rgba(255,215,0,0.3);
+        position: relative;
+        padding: 10px;
+      }
+      
+      /* 添加动态效果 */
+      .national-day-title::after {
+        content: "✨";
+        position: absolute;
+        animation: sparkle 1s infinite;
+      }
+      
+      @keyframes sparkle {
+        0% { opacity: 0; }
+        50% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      </style>
     <style>
         body {
             margin: 0;
@@ -18,13 +47,16 @@
         #mode-selector {
             margin: 20px;
             display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 25px;
+            flex-wrap: nowrap;
             justify-content: center;
+            align-items: center;
         }
 
         .mode-btn {
-            padding: 15px 30px;
+            padding: 18px 35px;
+            width: 220px;
             background: #ffea00;
             border: none;
             border-radius: 30px;
@@ -33,20 +65,22 @@
             font-size: 16px;
             transition: all 0.3s;
             position: relative;
+            text-align: center;
         }
 
         .mode-btn:hover::after {
             content: attr(data-desc);
             position: absolute;
-            bottom: -35px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 50%;
+            left: 110%;
+            transform: translateY(50%);
             background: rgba(0,0,0,0.8);
             color: white;
-            padding: 5px 10px;
+            padding: 8px 12px;
             border-radius: 5px;
-            font-size: 12px;
+            font-size: 14px;
             white-space: nowrap;
+            pointer-events: none;
         }
 
         #game-container {
@@ -66,6 +100,7 @@
             transform-style: preserve-3d;
             transition: transform 0.6s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            perspective: 1000px;
         }
 
         .card::before {
@@ -82,25 +117,26 @@
         }
 
         .card::after {
-            content: attr(data-type);
+            content: "";
             position: absolute;
             width: 100%;
             height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            color: #003366;
-            font-size: 14px;
+            background-image: var(--card-image);
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
             transform: rotateY(180deg);
             backface-visibility: hidden;
-            padding: 2px;
         }
 
         .flipped {
             transform: rotateY(180deg);
         }
 
+        .guess {
+            background-image: none !important;
+        }
+    
         #game-board {
             display: grid;
             gap: 10px;
@@ -141,6 +177,14 @@
                 width: 60px;
                 height: 60px;
             }
+            .mode-btn {
+                width: 180px;
+                padding: 15px 25px;
+            }
+            .mode-btn:hover::after {
+                left: 105%;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
@@ -154,6 +198,8 @@
                 data-desc="双重限制｜15/20/25步｜全局150秒｜记忆时间：4/6/8秒">困难模式</button>
     </div>
 
+    <!-- 游戏容器部分保持不变 -->
+    <!-- ...后续代码与之前提供的完全相同... -->
     <div id="game-container">
         <div id="status-bar">
             <div class="timer-box">
@@ -257,25 +303,28 @@
 
         function generateCards(rows, cols) {
             const pairs = (rows * cols) / 2;
-            /* 
-            【替换为图片步骤】：
-            1. 将下方改为图片路径数组，例如：`img/card-${i+1}.png`
-            2. 修改.card::after的CSS为背景图显示
-            */
-            const types = Array.from({length: pairs}, (_,i) => `元素${i+1}`);
+            const types = Array.from({length: pairs}, (_,i) => `img/card${i+1}.jpg`);
             const cards = types.flatMap(t => [t, t]).sort(() => Math.random() - 0.5);
 
             const board = document.getElementById('game-board');
             board.style.gridTemplateColumns = `repeat(${cols}, 70px)`;
-            board.innerHTML = cards.map(t => `
-                <div class="card" data-type="${t}" onclick="handleFlip(this)"></div>
-            `).join('');
+            board.innerHTML = '';
+            
+            cards.forEach((cardImg, index) => {
+                const card = document.createElement('div');
+                card.className = 'card flipped';
+                card.style.setProperty('--card-image', `url(${cardImg})`);
+                card.dataset.type = cardImg;
+                card.onclick = () => handleFlip(card);
+                board.appendChild(card);
+            });
         }
 
         function startMemoryPhase(seconds) {
             document.getElementById('memory-timer').textContent = seconds;
             document.querySelectorAll('.card').forEach(card => {
                 card.classList.add('flipped');
+                card.classList.remove('guess');
                 card.style.pointerEvents = 'none';
             });
 
@@ -292,6 +341,7 @@
         function endMemoryPhase() {
             document.querySelectorAll('.card').forEach(card => {
                 card.classList.remove('flipped');
+                card.classList.add('guess');
                 card.style.pointerEvents = 'auto';
             });
         }
@@ -306,6 +356,7 @@
             }
 
             card.classList.add('flipped');
+            card.classList.remove('guess');
             gameState.flipped.push(card);
 
             if(gameState.flipped.length === 2) {
@@ -332,6 +383,8 @@
             } else {
                 card1.classList.remove('flipped');
                 card2.classList.remove('flipped');
+                card1.classList.add('guess');
+                card2.classList.add('guess');
             }
 
             gameState.flipped = [];
